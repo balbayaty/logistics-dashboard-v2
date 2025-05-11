@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saudi-Kuwait Logistics Journey Analysis</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <script>
+    // Preload Chart.js to ensure it's available when needed
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM fully loaded - initializing dashboard');
+      
+      // Check if Chart is available
+      if (typeof Chart === 'undefined') {
+        console.error('Chart.js not loaded properly - attempting to reload');
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js';
+        script.onload = function() {
+          console.log('Chart.js loaded successfully');
+          setTimeout(initAllCharts, 500);
+        };
+        document.head.appendChild(script);
+      } else {
+        console.log('Chart.js loaded properly');
+        setTimeout(initAllCharts, 500);
+      }
+    });
+    
+    function initAllCharts() {
+      // Initialize all charts
+      if (typeof initializeOneWayCharts === 'function') {
+        initializeOneWayCharts();
+      }
+      
+      // Since round-trip is hidden by default, we'll initialize its charts on demand
+      const roundTripTab = document.getElementById('round-trip-journey');
+      if (roundTripTab) {
+        console.log('Round trip tab found');
+      } else {
+        console.error('Round trip tab not found');
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #f5f7fa;
+    }
+    .touchpoint-card {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .touchpoint-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
+    }
+    .category-origin { background-color: rgba(0, 136, 254, 0.1); border-left: 4px solid #0088FE; }
+    .category-transport { background-color: rgba(0, 196, 159, 0.1); border-left: 4px solid #00C49F; }
+    .category-customs { background-color: rgba(255, 187, 40, 0.1); border-left: 4px solid #FFBB28; }
+    .category-destination { background-color: rgba(255, 128, 66, 0.1); border-left: 4px solid #FF8042; }
+    .tab-button {
+      background-color: #f9fafb;
+      transition: background-color 0.3s ease;
+    }
+    .tab-button:hover {
+      background-color: #e5e7eb;
+    }
+    .tab-button.active {
+      background-color: #3b82f6;
+      color: white;
+    }
+    .journey-tab {
+      font-weight: 600;
+      padding: 1rem 2rem;
+      transition: all 0.3s ease;
+      border-bottom: 3px solid transparent;
+    }
+    .journey-tab.active {
+      border-bottom: 3px solid #3b82f6;
+      color: #3b82f6;
+    }
+    .section-title {
+      position: relative;
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .section-title:after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 3px;
+      width: 50px;
+      background-color: #3b82f6;
+    }
+    .stats-card {
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      background-color: white;
+    }
+    .insights-card {
+      border-left: 4px solid #3b82f6;
+      background-color: #edf2fd;
+      padding: 1rem;
+      border-radius: 0.375rem;
+      margin-bottom: 1rem;
+    }
+    .journey-content {
+      transition: opacity 0.3s ease;
+    }
+    .chart-container canvas {
+      transition: all 0.5s ease;
+    }
+    .touchpoint-card {
+      transform: translateY(0);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .touchpoint-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .stats-card {
+      transition: all 0.3s ease;
+    }
+    .stats-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    /* Add after the other styles */
+    .gradient-border {
+      position: relative;
+      border-radius: 0.5rem;
+      padding: 0.125rem;
+      background: linear-gradient(45deg, #0088FE, #00C49F, #FFBB28, #FF8042);
+    }
+    .gradient-border::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 0.5rem;
+      padding: 0.125rem;
+      background: linear-gradient(45deg, #0088FE, #00C49F, #FFBB28, #FF8042);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+    }
+    .animated-bg {
+      background: linear-gradient(-45deg, #0088FE22, #00C49F22, #FFBB2822, #FF804222);
+      background-size: 400% 400%;
+      animation: gradient 15s ease infinite;
+    }
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .animate-float {
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0px); }
+    }
+    .animated-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <!-- Header with Logo -->
+  <header class="bg-gradient-to-r from-blue-600 to-indigo-700 shadow-md">
+    <div class="container mx-auto px-4 py-6">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="text-center md:text-left mb-4 md:mb-0">
+          <div class="flex items-center">
+            <div class="hidden md:block">
+              <i class="fas fa-truck-moving text-white text-3xl mr-3"></i>
+            </div>
+            <div>
+              <h1 class="text-2xl font-bold text-white">Saudi-Kuwait Logistics Journey Analysis</h1>
+              <p class="text-sm text-blue-100">Comprehensive end-to-end logistics optimization</p>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <div class="hidden md:flex items-center bg-white bg-opacity-20 text-white rounded-full px-3 py-1">
+            <i class="far fa-calendar-alt mr-2"></i>
+            <span class="text-sm">Last Updated: June 2023</span>
+          </div>
+          <button class="px-4 py-2 bg-white text-blue-700 rounded-md hover:bg-blue-50 transition-colors shadow-sm flex items-center">
+            <i class="fas fa-download mr-2"></i> 
+            <span>Export Report</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-8">
+    <!-- Executive Summary -->
+    <section class="bg-white rounded-lg shadow-md p-8 mb-8 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-32 h-32 opacity-5">
+        <i class="fas fa-chart-line text-9xl text-blue-500"></i>
+      </div>
+      <h2 class="text-2xl font-bold mb-4 section-title flex items-center">
+        <i class="fas fa-chart-pie text-blue-500 mr-2"></i>
+        Executive Summary
+      </h2>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="stats-card gradient-border">
+          <div class="bg-white p-4 rounded-md h-full flex flex-col justify-center">
+            <div class="flex items-center mb-2">
+              <i class="fas fa-hourglass text-blue-500 text-xl mr-2"></i>
+              <div class="text-sm text-gray-600">Current Total Journey Time</div>
+            </div>
+            <div class="text-3xl font-bold text-gray-800 animated-pulse">125.38 hrs</div>
+            <div class="text-sm text-gray-600 mt-2 flex items-center">
+              <i class="fas fa-truck text-gray-400 mr-1"></i>
+              Average across all shipments
+            </div>
+          </div>
+        </div>
+        <div class="stats-card gradient-border">
+          <div class="bg-white p-4 rounded-md h-full flex flex-col justify-center">
+            <div class="flex items-center mb-2">
+              <i class="fas fa-tachometer-alt text-green-500 text-xl mr-2"></i>
+              <div class="text-sm text-gray-600">Optimization Potential</div>
+            </div>
+            <div class="text-3xl font-bold text-green-600 animated-pulse">53.42 hrs</div>
+            <div class="text-sm text-gray-600 mt-2 flex items-center">
+              <i class="fas fa-percentage text-gray-400 mr-1"></i>
+              42.6% journey time reduction
+            </div>
+          </div>
+        </div>
+        <div class="stats-card gradient-border">
+          <div class="bg-white p-4 rounded-md h-full flex flex-col justify-center">
+            <div class="flex items-center mb-2">
+              <i class="fas fa-leaf text-purple-500 text-xl mr-2"></i>
+              <div class="text-sm text-gray-600">CO₂ Emission Reduction</div>
+            </div>
+            <div class="text-3xl font-bold text-purple-600 animated-pulse">38.2%</div>
+            <div class="text-sm text-gray-600 mt-2 flex items-center">
+              <i class="fas fa-route text-gray-400 mr-1"></i>
+              Potential with optimized routes
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="text-gray-700 mb-4">
+        This analysis examines the Saudi-Kuwait logistics corridor, identifying significant optimization opportunities across the 12 touchpoints of the end-to-end journey. The most critical findings include:
+      </p>
+      <ul class="list-disc pl-5 mb-4 space-y-2 text-gray-700">
+        <li><span class="font-semibold">Kuwait Customs represents the primary bottleneck</span>, accounting for 44.22% of total journey time due to limited operational hours.</li>
+        <li><span class="font-semibold">Discrepancy in return customs clearance</span> with Saudi return clearance taking twice as long as outbound despite 24/7 operation.</li>
+        <li><span class="font-semibold">Offloading inefficiencies</span> where 47.35% of warehouse time is spent waiting outside working hours.</li>
+        <li><span class="font-semibold">Significant emissions impact</span> from idle vehicles and suboptimal scheduling.</li>
+      </ul>
+      <p class="text-gray-700">
+        Our analysis indicates a potential 42.6% reduction in journey time through targeted process improvements, operational adjustments, and strategic engagements with customs authorities.
+      </p>
+    </section>
+
+    <!-- Journey Type Selector -->
+    <div class="bg-white rounded-lg shadow-md p-0 mb-8 overflow-hidden">
+      <div class="animated-bg p-4">
+        <div class="flex flex-col sm:flex-row border-b border-blue-100">
+          <button id="one-way-journey" class="journey-tab active flex items-center justify-center sm:justify-start bg-white bg-opacity-90 rounded-t-lg mr-2 mb-2 sm:mb-0 shadow-sm">
+            <div class="w-8 h-8 flex items-center justify-center bg-blue-500 rounded-full text-white mr-2">
+              <i class="fas fa-long-arrow-alt-right"></i>
+            </div>
+            <span class="font-semibold">One-Way Journey</span>
+          </button>
+          <button id="round-trip-journey" class="journey-tab flex items-center justify-center sm:justify-start bg-white bg-opacity-75 rounded-t-lg shadow-sm hover:bg-opacity-90">
+            <div class="w-8 h-8 flex items-center justify-center bg-indigo-500 rounded-full text-white mr-2">
+              <i class="fas fa-exchange-alt"></i>
+            </div>
+            <span class="font-semibold">Round-Trip Journey</span>
+          </button>
+          <div class="ml-auto text-xs text-gray-700 flex items-center sm:pt-0 pt-3">
+            <div class="hidden sm:flex items-center mr-4">
+              <div class="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+              <span>Optimized</span>
+            </div>
+            <div class="hidden sm:flex items-center">
+              <div class="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
+              <span>Current</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-between px-4 py-2 bg-gray-50 text-xs text-gray-500">
+        <div>
+          <i class="fas fa-info-circle mr-1"></i> Select journey type to view detailed analysis
+        </div>
+        <div class="sm:hidden flex items-center space-x-3">
+          <div class="flex items-center">
+            <div class="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+            <span>Optimized</span>
+          </div>
+          <div class="flex items-center">
+            <div class="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
+            <span>Current</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Sections for One-Way Journey -->
+    <div id="one-way-content" class="journey-content" style="opacity: 1;">
+      <!-- Tab navigation -->
+      <div class="flex justify-center mb-8">
+        <div class="inline-flex rounded-md shadow-sm">
+          <button id="tab-overview" class="tab-button active px-4 py-2 text-sm font-medium rounded-l-md">
+            <i class="fas fa-chart-pie mr-2"></i>Process Overview
+          </button>
+          <button id="tab-touchpoints" class="tab-button px-4 py-2 text-sm font-medium">
+            <i class="fas fa-map-marker-alt mr-2"></i>Touchpoint Details
+          </button>
+          <button id="tab-bottlenecks" class="tab-button px-4 py-2 text-sm font-medium">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Bottlenecks
+          </button>
+          <button id="tab-optimizations" class="tab-button px-4 py-2 text-sm font-medium">
+            <i class="fas fa-chart-line mr-2"></i>Optimization
+          </button>
+          <button id="tab-esg" class="tab-button px-4 py-2 text-sm font-medium rounded-r-md">
+            <i class="fas fa-leaf mr-2"></i>ESG Impact
+          </button>
+        </div>
+      </div>
+
+      <!-- Overview Tab Content -->
+      <div id="content-overview" class="tab-content">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Journey Distribution</h2>
+            <div class="chart-container">
+              <canvas id="pieChartCategories"></canvas>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mt-6">
+              <div class="category-origin p-3 rounded-lg">
+                <div class="text-lg font-semibold text-blue-600">Origin</div>
+                <div>13.71 hours (10.94%)</div>
+              </div>
+              <div class="category-transport p-3 rounded-lg">
+                <div class="text-lg font-semibold text-green-600">Transport</div>
+                <div>13.42 hours (10.71%)</div>
+              </div>
+              <div class="category-customs p-3 rounded-lg">
+                <div class="text-lg font-semibold text-yellow-600">Customs</div>
+                <div>62.64 hours (49.96%)</div>
+              </div>
+              <div class="category-destination p-3 rounded-lg">
+                <div class="text-lg font-semibold text-orange-600">Destination</div>
+                <div>16.77 hours (13.37%)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="xl:col-span-2 bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">End-to-End Process Flow</h2>
+            <div class="chart-container">
+              <canvas id="barChartTouchpoints"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Touchpoints Tab Content -->
+      <div id="content-touchpoints" class="tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 class="text-xl font-semibold mb-4 text-center section-title">Touchpoint Analysis</h2>
+          <div class="overflow-auto">
+            <table class="min-w-full">
+              <thead>
+                <tr class="bg-gray-100">
+                  <th class="py-3 px-4 text-left">ID</th>
+                  <th class="py-3 px-4 text-left">Touchpoint</th>
+                  <th class="py-3 px-4 text-left">Category</th>
+                  <th class="py-3 px-4 text-left">Avg Hours</th>
+                  <th class="py-3 px-4 text-left">% of Total</th>
+                  <th class="py-3 px-4 text-left">Min - Max</th>
+                  <th class="py-3 px-4 text-left">StdDev</th>
+                  <th class="py-3 px-4 text-left">Operational Hours</th>
+                </tr>
+              </thead>
+              <tbody id="touchpointTable">
+                <!-- Touchpoint rows will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Touchpoint Time Variability</h2>
+            <div class="chart-container">
+              <canvas id="variabilityChart"></canvas>
+            </div>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Working vs. Non-Working Hours Impact</h2>
+            <div class="chart-container">
+              <canvas id="workingHoursChart"></canvas>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mt-4">
+              <div class="bg-green-50 p-3 rounded-lg border-l-4 border-green-500">
+                <div class="text-lg font-semibold text-green-600">Working Hours Arrivals</div>
+                <div>Average: 7.09 hours</div>
+                <div>Efficiency: 100%</div>
+              </div>
+              <div class="bg-red-50 p-3 rounded-lg border-l-4 border-red-500">
+                <div class="text-lg font-semibold text-red-600">Non-Working Hours Arrivals</div>
+                <div>Average: 21.61 hours</div>
+                <div>Efficiency: 50.5%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 class="text-xl font-semibold mb-4 text-center">Correlation Analysis</h2>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div>
+              <h3 class="font-semibold mb-3">Key Correlations Identified:</h3>
+              <ul class="space-y-3">
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-blue-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Arrival Time vs. Total Processing Time</strong>
+                    <p class="text-sm text-gray-600">Early morning arrivals (5-8am) at the consignee warehouse correlate with 63% shorter total processing times.</p>
+                  </div>
+                </li>
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-green-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Documentation Preparation vs. Customs Clearance</strong>
+                    <p class="text-sm text-gray-600">Shipments with pre-filed documentation show 28% faster customs clearance times.</p>
+                  </div>
+                </li>
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-yellow-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Day of Week Impact</strong>
+                    <p class="text-sm text-gray-600">Monday arrivals at Kuwait customs show 41% faster processing than Thursday arrivals.</p>
+                  </div>
+                </li>
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-red-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Cargo Type vs. Inspection Time</strong>
+                    <p class="text-sm text-gray-600">Chemical materials require 3.2x longer inspection times compared to other cargo types.</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="chart-container">
+              <canvas id="correlationChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div id="touchpointDetailCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <!-- Touchpoint detail cards will be populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Bottlenecks Tab Content -->
+      <div id="content-bottlenecks" class="tab-content hidden">
+        <div class="bg-white p-8 rounded-lg shadow-md">
+          <h2 class="text-2xl font-bold mb-4">Bottlenecks</h2>
+          <p>Content loading...</p>
+        </div>
+      </div>
+
+      <!-- Optimization Tab Content -->
+      <div id="content-optimizations" class="tab-content hidden">
+        <div class="bg-white p-8 rounded-lg shadow-md">
+          <h2 class="text-2xl font-bold mb-4">Optimization</h2>
+          <p>Content loading...</p>
+        </div>
+      </div>
+
+      <!-- ESG Tab Content -->
+      <div id="content-esg" class="tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 class="text-xl font-semibold mb-6 text-center section-title">Environmental Impact Analysis</h2>
+          
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+            <div class="stats-card border-l-4 border-green-500">
+              <div class="text-sm text-gray-600 mb-1">Annual Truck Emissions</div>
+              <div class="text-3xl font-bold text-gray-800">5,842 tons CO₂</div>
+              <div class="text-sm text-gray-600 mt-2">Based on current logistics journey</div>
+            </div>
+            <div class="stats-card border-l-4 border-blue-500">
+              <div class="text-sm text-gray-600 mb-1">Idle Time Emissions</div>
+              <div class="text-3xl font-bold text-orange-600">2,231 tons CO₂</div>
+              <div class="text-sm text-gray-600 mt-2">38.2% of total emissions</div>
+            </div>
+            <div class="stats-card border-l-4 border-purple-500">
+              <div class="text-sm text-gray-600 mb-1">Potential Annual Reduction</div>
+              <div class="text-3xl font-bold text-green-600">2,048 tons CO₂</div>
+              <div class="text-sm text-gray-600 mt-2">Through optimized processes</div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+            <div class="chart-container">
+              <canvas id="emissionsChart"></canvas>
+            </div>
+            <div>
+              <h3 class="font-semibold mb-4">Key Environmental Findings</h3>
+              <ul class="space-y-4">
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-red-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Idle Emissions at Kuwait Customs</strong>
+                    <p class="text-sm text-gray-600">Trucks waiting at Kuwait customs generate 1,458 tons of CO₂ annually due to extended waiting periods, representing 25% of total journey emissions.</p>
+                  </div>
+                </li>
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-orange-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Offloading Waiting Period</strong>
+                    <p class="text-sm text-gray-600">Vehicles waiting outside warehouse working hours produce 773 tons of CO₂ annually (13.2% of total) from unnecessary idling.</p>
+                  </div>
+                </li>
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-green-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Transit Route Efficiency</strong>
+                    <p class="text-sm text-gray-600">Current routes are 18% longer than optimal paths, resulting in approximately 612 tons of excess CO₂ emissions annually.</p>
+                  </div>
+                </li>
+                <li class="flex items-start">
+                  <div class="flex-shrink-0 h-5 w-5 rounded-full bg-blue-500 mt-1 mr-2"></div>
+                  <div>
+                    <strong>Fuel Quality & Vehicle Efficiency</strong>
+                    <p class="text-sm text-gray-600">Fleet analysis indicates potential 22% emissions reduction through vehicle upgrades and higher-quality fuel usage.</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="bg-green-50 p-6 rounded-lg mb-8">
+            <h3 class="text-xl font-semibold mb-4 text-green-800">ESG Impact Optimization Strategy</h3>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              <div>
+                <h4 class="font-semibold text-green-700 mb-2">Short-Term Initiatives (0-6 months)</h4>
+                <ul class="space-y-2">
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">1</span>
+                    <span>Implement anti-idling protocols at all waiting points</span>
+                  </li>
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">2</span>
+                    <span>Optimize arrival scheduling to minimize waiting periods</span>
+                  </li>
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">3</span>
+                    <span>Introduce route optimization for all transit segments</span>
+                  </li>
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">4</span>
+                    <span>Begin driver eco-driving training program</span>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-semibold text-green-700 mb-2">Long-Term Initiatives (6-24 months)</h4>
+                <ul class="space-y-2">
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">1</span>
+                    <span>Gradual fleet transition to lower-emission vehicles</span>
+                  </li>
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">2</span>
+                    <span>Implement carbon offset program for remaining emissions</span>
+                  </li>
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">3</span>
+                    <span>Explore alternative fuel options for specific route segments</span>
+                  </li>
+                  <li class="flex items-start">
+                    <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-600 text-white rounded-full flex-shrink-0">4</span>
+                    <span>Develop comprehensive emissions tracking system</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div class="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold mb-3">Emissions by Touchpoint</h3>
+              <table class="min-w-full">
+                <thead>
+                  <tr class="bg-gray-50">
+                    <th class="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Touchpoint</th>
+                    <th class="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Emissions (tons CO₂)</th>
+                    <th class="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">% of Total</th>
+                    <th class="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reduction Potential</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Kuwait Customs</td>
+                    <td class="py-2 px-3 text-sm">1,458</td>
+                    <td class="py-2 px-3 text-sm">25.0%</td>
+                    <td class="py-2 px-3 text-sm text-green-600">High</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Transit Segments</td>
+                    <td class="py-2 px-3 text-sm">1,244</td>
+                    <td class="py-2 px-3 text-sm">21.3%</td>
+                    <td class="py-2 px-3 text-sm text-yellow-600">Medium</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Saudi Customs</td>
+                    <td class="py-2 px-3 text-sm">854</td>
+                    <td class="py-2 px-3 text-sm">14.6%</td>
+                    <td class="py-2 px-3 text-sm text-green-600">High</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Warehouse Waiting</td>
+                    <td class="py-2 px-3 text-sm">773</td>
+                    <td class="py-2 px-3 text-sm">13.2%</td>
+                    <td class="py-2 px-3 text-sm text-green-600">High</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Loading/Offloading</td>
+                    <td class="py-2 px-3 text-sm">706</td>
+                    <td class="py-2 px-3 text-sm">12.1%</td>
+                    <td class="py-2 px-3 text-sm text-yellow-600">Medium</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Documentation Waiting</td>
+                    <td class="py-2 px-3 text-sm">437</td>
+                    <td class="py-2 px-3 text-sm">7.5%</td>
+                    <td class="py-2 px-3 text-sm text-green-600">High</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 text-sm">Other</td>
+                    <td class="py-2 px-3 text-sm">370</td>
+                    <td class="py-2 px-3 text-sm">6.3%</td>
+                    <td class="py-2 px-3 text-sm text-red-600">Low</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold mb-3">Environmental ROI Analysis</h3>
+              <div class="chart-container">
+                <canvas id="environmentalROIChart"></canvas>
+              </div>
+              <div class="mt-4 text-sm text-gray-600">
+                <p>The Environmental ROI analysis shows the relationship between investment required and environmental impact achieved. High-impact, low-cost initiatives should be prioritized for immediate implementation.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Sections for Round-Trip Journey -->
+    <div id="round-trip-content" class="journey-content" style="opacity: 0; display: none;">
+      <!-- Tab navigation for round trip -->
+      <div class="flex justify-center mb-8">
+        <div class="inline-flex rounded-md shadow-sm">
+          <button id="rt-tab-overview" class="tab-button active px-4 py-2 text-sm font-medium rounded-l-md">
+            <i class="fas fa-chart-pie mr-2"></i>Process Overview
+          </button>
+          <button id="rt-tab-touchpoints" class="tab-button px-4 py-2 text-sm font-medium">
+            <i class="fas fa-map-marker-alt mr-2"></i>Touchpoint Details
+          </button>
+          <button id="rt-tab-bottlenecks" class="tab-button px-4 py-2 text-sm font-medium">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Bottlenecks
+          </button>
+          <button id="rt-tab-optimizations" class="tab-button px-4 py-2 text-sm font-medium">
+            <i class="fas fa-chart-line mr-2"></i>Optimization
+          </button>
+          <button id="rt-tab-esg" class="tab-button px-4 py-2 text-sm font-medium rounded-r-md">
+            <i class="fas fa-leaf mr-2"></i>ESG Impact
+          </button>
+        </div>
+      </div>
+
+      <!-- Round Trip Overview Tab Content -->
+      <div id="rt-content-overview" class="rt-tab-content">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Complete Journey Distribution</h2>
+            <div class="chart-container">
+              <canvas id="rtPieChartCategories" width="400" height="400"></canvas>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mt-6">
+              <div class="category-origin p-3 rounded-lg">
+                <div class="text-lg font-semibold text-blue-600">Origin</div>
+                <div>13.71 hours (10.94%)</div>
+              </div>
+              <div class="category-transport p-3 rounded-lg">
+                <div class="text-lg font-semibold text-green-600">Transport</div>
+                <div>16.52 hours (13.18%)</div>
+              </div>
+              <div class="category-customs p-3 rounded-lg">
+                <div class="text-lg font-semibold text-yellow-600">Customs</div>
+                <div>78.38 hours (62.52%)</div>
+              </div>
+              <div class="category-destination p-3 rounded-lg">
+                <div class="text-lg font-semibold text-orange-600">Destination</div>
+                <div>16.77 hours (13.37%)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="xl:col-span-2 bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Complete End-to-End Process Flow</h2>
+            <div class="chart-container">
+              <canvas id="rtBarChartTouchpoints" width="800" height="400"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Round-Trip Pareto Analysis</h2>
+            <div class="chart-container">
+              <canvas id="rtParetoChart"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Return Journey Impact</h2>
+            <div class="space-y-4">
+              <div class="category-customs p-4 rounded-lg">
+                <h3 class="font-bold text-lg mb-1">Return Customs Delay: Critical Bottleneck</h3>
+                <p>Saudi return clearance takes 15.21 hours (111% longer than outbound) despite 24/7 operation, adding significant delay.</p>
+              </div>
+              <div class="category-customs p-4 rounded-lg">
+                <h3 class="font-bold text-lg mb-1">Round-Trip Utilization</h3>
+                <p>Empty return journey represents 32.3% of total round-trip time with minimal value-add, impacting overall fleet efficiency.</p>
+              </div>
+              <div class="category-transport p-4 rounded-lg">
+                <h3 class="font-bold text-lg mb-1">Return Transit Variance</h3>
+                <p>Return transit times show 18.3% higher variability compared to outbound routes, suggesting optimization opportunities.</p>
+              </div>
+              <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <h3 class="font-bold text-lg mb-1">Total Improvement Potential</h3>
+                <p>Addressing round-trip inefficiencies could reduce total journey time by 65.84 hours (52.5% improvement).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 class="text-xl font-semibold mb-4 text-center">One-Way vs. Round-Trip Comparison</h2>
+          <div class="chart-container" style="height: 400px">
+            <canvas id="comparisonChart" width="600" height="400"></canvas>
+          </div>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-semibold text-lg mb-2">Key Differences:</h3>
+              <ul class="space-y-2">
+                <li class="flex items-start">
+                  <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-blue-500 text-white rounded-full flex-shrink-0">1</span>
+                  <span>Return journey adds 40.7% to the total time but no cargo is transported</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-blue-500 text-white rounded-full flex-shrink-0">2</span>
+                  <span>Saudi customs processing for empty trucks is 2.1x longer than loaded trucks</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-blue-500 text-white rounded-full flex-shrink-0">3</span>
+                  <span>Kuwait customs shows 99% greater efficiency for return vs. inbound</span>
+                </li>
+              </ul>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <h3 class="font-semibold text-lg mb-2">Return Journey Insights:</h3>
+              <ul class="space-y-2">
+                <li class="flex items-start">
+                  <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-500 text-white rounded-full flex-shrink-0">1</span>
+                  <span>Return coordination opportunities can save up to 12.4 hours</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-500 text-white rounded-full flex-shrink-0">2</span>
+                  <span>Kuwait customs model can be applied to other touchpoints</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="inline-flex items-center justify-center w-5 h-5 mr-2 bg-green-500 text-white rounded-full flex-shrink-0">3</span>
+                  <span>Potential for return cargo to improve utilization by 28.6%</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Round Trip Touchpoints Tab Content -->
+      <div id="rt-content-touchpoints" class="rt-tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 class="text-xl font-semibold mb-4 text-center section-title">Return Journey Touchpoints</h2>
+          <div class="overflow-auto">
+            <table class="min-w-full">
+              <thead>
+                <tr class="bg-gray-100">
+                  <th class="py-3 px-4 text-left">ID</th>
+                  <th class="py-3 px-4 text-left">Touchpoint</th>
+                  <th class="py-3 px-4 text-left">Category</th>
+                  <th class="py-3 px-4 text-left">Avg Hours</th>
+                  <th class="py-3 px-4 text-left">% of Total</th>
+                  <th class="py-3 px-4 text-left">Min - Max</th>
+                  <th class="py-3 px-4 text-left">StdDev</th>
+                </tr>
+              </thead>
+              <tbody id="rtTouchpointTable">
+                <!-- Return touchpoint rows will be populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Return Journey Time Distribution</h2>
+            <div class="chart-container">
+              <canvas id="rtJourneyDistributionChart" width="400" height="400"></canvas>
+            </div>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 text-center">Round-Trip Efficiency Analysis</h2>
+            <div class="chart-container">
+              <canvas id="rtEfficiencyChart" width="400" height="400"></canvas>
+            </div>
+            <div class="grid grid-cols-1 gap-4 mt-4">
+              <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
+                <div class="text-lg font-semibold text-blue-600">Journey Efficiency</div>
+                <div>Value-Adding Time: 60.4%</div>
+                <div>Non-Value-Adding Time: 39.6%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Other round trip tab contents -->
+      <div id="rt-content-bottlenecks" class="rt-tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h2 class="text-xl font-semibold mb-4 text-center section-title">Round-Trip Bottlenecks</h2>
+          <p>Round-trip bottlenecks content loading...</p>
+        </div>
+      </div>
+
+      <div id="rt-content-optimizations" class="rt-tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h2 class="text-xl font-semibold mb-4 text-center section-title">Round-Trip Optimization</h2>
+          <p>Round-trip optimization content loading...</p>
+        </div>
+      </div>
+
+      <div id="rt-content-esg" class="rt-tab-content hidden">
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h2 class="text-xl font-semibold mb-4 text-center section-title">Round-Trip Environmental Impact</h2>
+          <p>Round-trip ESG content loading...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-gradient-to-r from-gray-800 to-gray-900 text-white py-8">
+    <div class="container mx-auto px-4">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0 text-center md:text-left">
+          <div class="flex items-center justify-center md:justify-start">
+            <i class="fas fa-truck-moving text-blue-400 text-xl mr-2"></i>
+            <h3 class="text-lg font-semibold">Saudi-Kuwait Logistics Analysis</h3>
+          </div>
+          <p class="text-sm text-gray-400">© 2023 All rights reserved</p>
+        </div>
+        <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6">
+          <div class="flex items-center text-gray-300">
+            <i class="fas fa-lock text-blue-400 mr-2"></i>
+            <span class="text-sm">Confidential Analysis</span>
+          </div>
+          <div class="flex items-center text-gray-300">
+            <i class="fas fa-chart-bar text-blue-400 mr-2"></i>
+            <span class="text-sm">Professional Services</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Tab navigation
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.addEventListener('click', () => {
+        // Update active button
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        
+        // Show corresponding content
+        const tabId = button.id.replace('tab-', '');
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+        document.getElementById(`content-${tabId}`).classList.remove('hidden');
+      });
+    });
+
+    // Journey type navigation with smooth transitions
+    document.getElementById('one-way-journey').addEventListener('click', () => {
+      document.getElementById('one-way-journey').classList.add('active');
+      document.getElementById('round-trip-journey').classList.remove('active');
+      
+      // Fade out round-trip content
+      document.getElementById('round-trip-content').style.opacity = '0';
+      
+      // After a short delay, switch content and fade in one-way content
+      setTimeout(() => {
+        document.getElementById('round-trip-content').style.display = 'none';
+        document.getElementById('one-way-content').style.display = 'block';
+        
+        // Fade in one-way content
+        setTimeout(() => {
+          document.getElementById('one-way-content').style.opacity = '1';
+        }, 50);
+      }, 300);
+    });
+
+    document.getElementById('round-trip-journey').addEventListener('click', () => {
+      document.getElementById('round-trip-journey').classList.add('active');
+      document.getElementById('one-way-journey').classList.remove('active');
+      
+      // Fade out one-way content
+      document.getElementById('one-way-content').style.opacity = '0';
+      
+      // After a short delay, switch content and fade in round-trip content
+      setTimeout(() => {
+        document.getElementById('one-way-content').style.display = 'none';
+        document.getElementById('round-trip-content').style.display = 'block';
+        
+        // Initialize round-trip charts if not already done
+        initializeRoundTripCharts();
+        
+        // Fade in round-trip content
+        setTimeout(() => {
+          document.getElementById('round-trip-content').style.opacity = '1';
+        }, 50);
+      }, 300);
+    });
+
+    // Category Colors
+    const CATEGORY_COLORS = {
+      "Origin": '#0088FE',
+      "Transport": '#00C49F',
+      "Customs": '#FFBB28',
+      "Destination": '#FF8042'
+    };
+
+    // Create Charts
+    // 1. Process Stage Distribution Pie Chart
+    const processStagePieData = [
+      { name: "Origin", value: 13.71 },
+      { name: "Transport", value: 13.42 },
+      { name: "Customs", value: 62.64 },
+      { name: "Destination", value: 16.77 }
+    ];
+    
+    const pieChartCategories = new Chart(
+      document.getElementById('pieChartCategories'),
+      {
+        type: 'pie',
+        data: {
+          labels: processStagePieData.map(item => item.name),
+          datasets: [
+            {
+              label: 'Hours',
+              data: processStagePieData.map(item => item.value),
+              backgroundColor: [
+                CATEGORY_COLORS.Origin,
+                CATEGORY_COLORS.Transport,
+                CATEGORY_COLORS.Customs,
+                CATEGORY_COLORS.Destination
+              ],
+              hoverOffset: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((value / total) * 100).toFixed(1);
+                  return `${value.toFixed(2)} hours (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      }
+    );
+
+    // Touchpoint Data for one-way journey
+    const oneWayTouchpointData = [
+      { id: 1, name: "Waiting outside Plant", avgHours: 1.89, percentage: 1.51, category: "Origin"},
+      { id: 2, name: "Truck Loading Time", avgHours: 6.54, percentage: 5.22, category: "Origin"},
+      { id: 3, name: "Documentation waiting", avgHours: 5.28, percentage: 4.21, category: "Origin"},
+      { id: 4, name: "Transit to Saudi Customs", avgHours: 11.05, percentage: 8.82, category: "Transport"},
+      { id: 5, name: "Saudi custom clearance", avgHours: 7.21, percentage: 5.75, category: "Customs"},
+      { id: 6, name: "Kuwait custom clearance", avgHours: 55.43, percentage: 44.22, category: "Customs"},
+      { id: 7, name: "Transit to warehouse", avgHours: 2.37, percentage: 1.89, category: "Transport"},
+      { id: 8, name: "Waiting outside working hours", avgHours: 7.94, percentage: 6.33, category: "Destination"},
+      { id: 9, name: "Actual offloading time", avgHours: 8.83, percentage: 7.04, category: "Destination"}
+    ];
+
+    // 2. End-to-End Process Flow Bar Chart
+    const barChartTouchpoints = new Chart(
+      document.getElementById('barChartTouchpoints'),
+      {
+        type: 'bar',
+        data: {
+          labels: oneWayTouchpointData.map(item => `TP${item.id}: ${item.name}`),
+          datasets: [
+            {
+              label: 'Average Time (hours)',
+              data: oneWayTouchpointData.map(item => item.avgHours),
+              backgroundColor: oneWayTouchpointData.map(item => CATEGORY_COLORS[item.category]),
+              borderColor: oneWayTouchpointData.map(item => CATEGORY_COLORS[item.category]),
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Hours'
+              }
+            }
+          }
+        }
+      }
+    );
+
+    // Touchpoint Data with additional details
+    const touchpointData = [
+      { id: 1, name: "Waiting outside Plant", avgHours: 1.89, percentage: 1.51, category: "Origin", 
+        description: "Initial waiting time before the truck enters the plant for loading.",
+        operationalHours: "24/7",
+        keyIssues: "Queue management and entry processing constraints.",
+        recommendations: "Implement appointment system and expedited entry lanes.",
+        minTime: 0.5, maxTime: 3.2, medianTime: 1.7, stdDev: 0.8 },
+      { id: 2, name: "Truck Loading Time", avgHours: 6.54, percentage: 5.22, category: "Origin", 
+        description: "Time required to load cargo onto the truck at shipper's plant.",
+        operationalHours: "24/7",
+        keyIssues: "Standard loading protocols and equipment limitations.",
+        recommendations: "Optimize loading procedures and evaluate equipment upgrades.",
+        minTime: 5.1, maxTime: 8.3, medianTime: 6.4, stdDev: 0.9 },
+      { id: 3, name: "Documentation waiting", avgHours: 5.28, percentage: 4.21, category: "Origin", 
+        description: "Time spent waiting for documentation processing before departure.",
+        operationalHours: "8am-11pm (Sat-Thu), 8am-4pm (Fri)",
+        keyIssues: "Limited processing hours compared to 24/7 loading.",
+        recommendations: "Implement digital documentation and pre-filing protocols.",
+        minTime: 3.2, maxTime: 7.8, medianTime: 5.1, stdDev: 1.3 },
+      { id: 4, name: "Transit to Saudi Customs", avgHours: 11.05, percentage: 8.82, category: "Transport", 
+        description: "Transit time from loading plant to Saudi customs checkpoint.",
+        operationalHours: "N/A (transit)",
+        keyIssues: "Long distance and potential traffic congestion.",
+        recommendations: "Optimize route planning and driver scheduling.",
+        minTime: 9.5, maxTime: 13.2, medianTime: 10.8, stdDev: 1.1 },
+      { id: 5, name: "Saudi custom clearance", avgHours: 7.21, percentage: 5.75, category: "Customs", 
+        description: "Time required for customs clearance at Saudi border.",
+        operationalHours: "24/7",
+        keyIssues: "Thorough inspection processes for chemical shipments.",
+        recommendations: "Establish trusted shipper program for expedited clearance.",
+        minTime: 5.8, maxTime: 9.7, medianTime: 6.9, stdDev: 1.2 },
+      { id: 6, name: "Kuwait custom clearance", avgHours: 55.43, percentage: 44.22, category: "Customs", 
+        description: "Time required for customs clearance at Kuwait border.",
+        operationalHours: "8am-1pm (Sat-Thu), Closed (Fri)",
+        keyIssues: "Extremely limited operational hours (only 5 hours daily, 6 days per week).",
+        recommendations: "Engage with Kuwait authorities for extended processing options.",
+        minTime: 36.5, maxTime: 82.3, medianTime: 53.8, stdDev: 12.7 },
+      { id: 7, name: "Transit to warehouse", avgHours: 2.37, percentage: 1.89, category: "Transport", 
+        description: "Transit time from Kuwait customs to consignee warehouse.",
+        operationalHours: "N/A (transit)",
+        keyIssues: "Limited issues, relatively short transit time.",
+        recommendations: "Maintain current routing protocols.",
+        minTime: 1.8, maxTime: 3.1, medianTime: 2.3, stdDev: 0.4 },
+      { id: 8, name: "Waiting outside working hours", avgHours: 7.94, percentage: 6.33, category: "Destination", 
+        description: "Time trucks spend waiting due to arrival outside warehouse operational hours.",
+        operationalHours: "5am-4pm (Sat-Thu), Closed (Fri)",
+        keyIssues: "Nearly half of arrivals occur outside working hours.",
+        recommendations: "Schedule arrivals between 5-8am for same-day processing.",
+        minTime: 0.0, maxTime: 30.0, medianTime: 5.5, stdDev: 9.1 },
+      { id: 9, name: "Actual offloading time", avgHours: 8.83, percentage: 7.04, category: "Destination", 
+        description: "Actual time required for offloading cargo at the warehouse.",
+        operationalHours: "5am-4pm (Sat-Thu), Closed (Fri)",
+        keyIssues: "Wide variation in processing times (6.18-17.77 hours).",
+        recommendations: "Standardize offloading procedures to match best performers.",
+        minTime: 6.18, maxTime: 17.77, medianTime: 7.44, stdDev: 2.66 }
+    ];
+
+    // Populate touchpoint table
+    const touchpointTable = document.getElementById('touchpointTable');
+    touchpointData.forEach(tp => {
+      const row = document.createElement('tr');
+      row.className = `category-${tp.category.toLowerCase()} hover:bg-gray-50`;
+      
+      row.innerHTML = `
+        <td class="py-3 px-4">${tp.id}</td>
+        <td class="py-3 px-4 font-medium">${tp.name}</td>
+        <td class="py-3 px-4">${tp.category}</td>
+        <td class="py-3 px-4">${tp.avgHours.toFixed(2)}</td>
+        <td class="py-3 px-4">${tp.percentage.toFixed(2)}%</td>
+        <td class="py-3 px-4">${tp.minTime.toFixed(2)} - ${tp.maxTime.toFixed(2)}</td>
+        <td class="py-3 px-4">${tp.stdDev.toFixed(2)}</td>
+        <td class="py-3 px-4">${tp.operationalHours}</td>
+      `;
+      
+      touchpointTable.appendChild(row);
+    });
+
+    // 4. Touchpoint Time Variability Chart
+    const variabilityChart = new Chart(
+      document.getElementById('variabilityChart'),
+      {
+        type: 'bar',
+        data: {
+          labels: touchpointData.map(item => `TP${item.id}`),
+          datasets: [
+            {
+              label: 'Minimum',
+              data: touchpointData.map(item => item.minTime),
+              backgroundColor: '#8884d8',
+            },
+            {
+              label: 'Average',
+              data: touchpointData.map(item => item.avgHours),
+              backgroundColor: '#82ca9d',
+            },
+            {
+              label: 'Maximum',
+              data: touchpointData.map(item => item.maxTime),
+              backgroundColor: '#ffc658',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Hours'
+              }
+            }
+          }
+        }
+      }
+    );
+
+    // 5. Working Hours Impact Chart
+    const workingHoursData = {
+      labels: ['Working Hours Arrivals', 'Non-Working Hours Arrivals'],
+      datasets: [
+        {
+          label: 'Actual Processing',
+          data: [7.09, 9.70],
+          backgroundColor: '#0088FE',
+          stack: 'Stack 0',
+        },
+        {
+          label: 'Outside Hours Waiting',
+          data: [0, 11.92],
+          backgroundColor: '#FF8042',
+          stack: 'Stack 0',
+        }
+      ]
+    };
+
+    const workingHoursChart = new Chart(
+      document.getElementById('workingHoursChart'),
+      {
+        type: 'bar',
+        data: workingHoursData,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              stacked: true,
+              title: {
+                display: true,
+                text: 'Hours'
+              }
+            },
+            x: {
+              stacked: true
+            }
+          }
+        }
+      }
+    );
+
+    // Correlation Chart
+    const correlationChart = new Chart(
+      document.getElementById('correlationChart'),
+      {
+        type: 'radar',
+        data: {
+          labels: ['Documentation Quality', 'Time of Arrival', 'Day of Week', 'Cargo Type', 'Regular vs. New Shipper', 'Pre-filing'],
+          datasets: [
+            {
+              label: 'Impact on Processing Time',
+              data: [75, 83, 68, 89, 42, 63],
+              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              borderColor: 'rgb(75, 192, 192)',
+              pointBackgroundColor: 'rgb(75, 192, 192)',
+              pointBorderColor: '#fff',
+              pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: 'rgb(75, 192, 192)'
+            }
+          ]
+        },
+        options: {
+          elements: {
+            line: {
+              borderWidth: 3
+            }
+          },
+          scales: {
+            r: {
+              angleLines: {
+                display: true
+              },
+              suggestedMin: 0,
+              suggestedMax: 100
+            }
+          }
+        }
+      }
+    );
+
+    // Populate touchpoint detail cards
+    const touchpointDetailCards = document.getElementById('touchpointDetailCards');
+    touchpointData.forEach(tp => {
+      const card = document.createElement('div');
+      card.className = `touchpoint-card p-4 rounded-lg shadow-md category-${tp.category.toLowerCase()}`;
+      
+      card.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-lg font-bold">TP${tp.id}: ${tp.name}</h3>
+          <span class="px-2 py-1 bg-gray-200 rounded-full text-xs font-medium">${tp.category}</span>
+        </div>
+        <div class="mb-3">
+          <div class="text-sm text-gray-600">Average Time:</div>
+          <div class="text-xl font-bold">${tp.avgHours.toFixed(2)} hours (${tp.percentage.toFixed(2)}%)</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-sm text-gray-600">Description:</div>
+          <div>${tp.description}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-sm text-gray-600">Operational Hours:</div>
+          <div>${tp.operationalHours}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-sm text-gray-600">Key Issues:</div>
+          <div>${tp.keyIssues}</div>
+        </div>
+        <div>
+          <div class="text-sm text-gray-600">Recommendations:</div>
+          <div>${tp.recommendations}</div>
+        </div>
+      `;
+      
+      touchpointDetailCards.appendChild(card);
+    });
+
+    // Emissions Chart
+    const emissionsData = {
+      labels: ['Transit', 'Idling', 'Loading/Unloading', 'Other'],
+      datasets: [
+        {
+          label: 'Current Emissions',
+          data: [1856, 2231, 1286, 469],
+          backgroundColor: ['#00C49F', '#FF8042', '#FFBB28', '#0088FE'],
+        },
+        {
+          label: 'Optimized Emissions',
+          data: [1598, 682, 1045, 469],
+          backgroundColor: ['rgba(0, 196, 159, 0.6)', 'rgba(255, 128, 66, 0.6)', 'rgba(255, 187, 40, 0.6)', 'rgba(0, 136, 254, 0.6)'],
+        }
+      ]
+    };
+
+    const emissionsChart = new Chart(
+      document.getElementById('emissionsChart'),
+      {
+        type: 'bar',
+        data: emissionsData,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            title: {
+              display: true,
+              text: 'CO₂ Emissions Breakdown (tons per year)'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Tons of CO₂'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Emission Source'
+              }
+            }
+          }
+        }
+      }
+    );
+
+    // Environmental ROI Chart
+    const environmentalROIData = {
+      datasets: [{
+        label: 'Environmental Initiatives',
+        data: [
+          { x: 85, y: 90, r: 15, initiative: 'Anti-idling protocols' },
+          { x: 70, y: 80, r: 12, initiative: 'Route optimization' },
+          { x: 50, y: 75, r: 10, initiative: 'Driver training' },
+          { x: 40, y: 60, r: 8, initiative: 'Schedule optimization' },
+          { x: 30, y: 40, r: 20, initiative: 'Fleet upgrades' },
+          { x: 25, y: 30, r: 7, initiative: 'Alternative fuels' },
+          { x: 15, y: 25, r: 5, initiative: 'Carbon offsets' },
+          { x: 10, y: 15, r: 6, initiative: 'Process digitization' }
+        ],
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.7)',
+          'rgba(54, 162, 235, 0.7)',
+          'rgba(255, 206, 86, 0.7)',
+          'rgba(75, 192, 192, 0.7)',
+          'rgba(153, 102, 255, 0.7)',
+          'rgba(255, 159, 64, 0.7)',
+          'rgba(199, 199, 199, 0.7)',
+          'rgba(83, 102, 255, 0.7)'
+        ]
+      }]
+    };
+
+    const environmentalROIChart = new Chart(
+      document.getElementById('environmentalROIChart'),
+      {
+        type: 'bubble',
+        data: environmentalROIData,
+        options: {
+          responsive: true,
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const item = context.raw;
+                  return `${item.initiative} - Impact: ${item.y}%, Cost: ${item.x}%`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Implementation Cost (% of Budget)'
+              },
+              min: 0,
+              max: 100
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Environmental Impact (%)'
+              },
+              min: 0,
+              max: 100
+            }
+          }
+        }
+      }
+    );
+
+    // Fix for the round-trip content
+    function initializeRoundTripCharts() {
+      console.log('Initializing round trip charts');
+      
+      // Debug: check if all elements exist
+      const elementIds = ['rtPieChartCategories', 'rtBarChartTouchpoints', 'rtParetoChart', 
+                         'rtJourneyDistributionChart', 'rtEfficiencyChart', 'comparisonChart', 'rtTouchpointTable'];
+      
+      elementIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          console.log(`Element ${id} found`);
+        } else {
+          console.error(`Element ${id} NOT found - this will cause errors`);
+        }
+      });
+      
+      // Round-trip data
+      const roundTripTouchpointData = [
+        { id: 1, name: "Waiting outside Plant", avgHours: 1.89, percentage: 1.51, category: "Origin", minTime: 0.5, maxTime: 3.2, stdDev: 0.8 },
+        { id: 2, name: "Truck Loading Time", avgHours: 6.54, percentage: 5.22, category: "Origin", minTime: 5.1, maxTime: 8.3, stdDev: 0.9 },
+        { id: 3, name: "Documentation waiting", avgHours: 5.28, percentage: 4.21, category: "Origin", minTime: 3.2, maxTime: 7.8, stdDev: 1.3 },
+        { id: 4, name: "Transit to Saudi Customs", avgHours: 11.05, percentage: 8.82, category: "Transport", minTime: 9.5, maxTime: 13.2, stdDev: 1.1 },
+        { id: 5, name: "Saudi custom clearance", avgHours: 7.21, percentage: 5.75, category: "Customs", minTime: 5.8, maxTime: 9.7, stdDev: 1.2 },
+        { id: 6, name: "Kuwait custom clearance", avgHours: 55.43, percentage: 44.22, category: "Customs", minTime: 36.5, maxTime: 82.3, stdDev: 12.7 },
+        { id: 7, name: "Transit to warehouse", avgHours: 2.37, percentage: 1.89, category: "Transport", minTime: 1.8, maxTime: 3.1, stdDev: 0.4 },
+        { id: 8, name: "Waiting outside working hours", avgHours: 7.94, percentage: 6.33, category: "Destination", minTime: 0.0, maxTime: 30.0, stdDev: 9.1 },
+        { id: 9, name: "Actual offloading time", avgHours: 8.83, percentage: 7.04, category: "Destination", minTime: 6.18, maxTime: 17.77, stdDev: 2.66 },
+        { id: 10, name: "Transit to KW customs", avgHours: 3.10, percentage: 2.47, category: "Transport", minTime: 2.4, maxTime: 4.2, stdDev: 0.5 },
+        { id: 11, name: "KW custom clearance", avgHours: 0.53, percentage: 0.42, category: "Customs", minTime: 0.3, maxTime: 0.8, stdDev: 0.2 },
+        { id: 12, name: "SA custom clearance", avgHours: 15.21, percentage: 12.13, category: "Customs", minTime: 10.4, maxTime: 21.8, stdDev: 3.2 }
+      ];
+
+      // Ensure the DOM element exists before populating or creating charts
+      const rtTouchpointTable = document.getElementById('rtTouchpointTable');
+      if (rtTouchpointTable) {
+        // Clear existing content first
+        rtTouchpointTable.innerHTML = '';
+        
+        // Populate return journey touchpoint table
+        roundTripTouchpointData.forEach(tp => {
+          const row = document.createElement('tr');
+          row.className = `category-${tp.category.toLowerCase()} hover:bg-gray-50`;
+          
+          row.innerHTML = `
+            <td class="py-3 px-4">${tp.id}</td>
+            <td class="py-3 px-4 font-medium">${tp.name}</td>
+            <td class="py-3 px-4">${tp.category}</td>
+            <td class="py-3 px-4">${tp.avgHours.toFixed(2)}</td>
+            <td class="py-3 px-4">${tp.percentage.toFixed(2)}%</td>
+            <td class="py-3 px-4">${tp.minTime.toFixed(2)} - ${tp.maxTime.toFixed(2)}</td>
+            <td class="py-3 px-4">${tp.stdDev.toFixed(2)}</td>
+          `;
+          
+          rtTouchpointTable.appendChild(row);
+        });
+      }
+
+      // Round-trip tab navigation
+      document.querySelectorAll('#round-trip-content .tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+          // Update active button
+          document.querySelectorAll('#round-trip-content .tab-button').forEach(btn => btn.classList.remove('active'));
+          button.classList.add('active');
+          
+          // Show corresponding content
+          const tabId = button.id.replace('rt-tab-', 'rt-content-');
+          document.querySelectorAll('.rt-tab-content').forEach(content => content.classList.add('hidden'));
+          document.getElementById(tabId).classList.remove('hidden');
+        });
+      });
+
+      // Create or update round-trip charts
+      createRoundTripCharts(roundTripTouchpointData);
+    }
+
+    function createRoundTripCharts(roundTripTouchpointData) {
+      // Helper function to safely get Chart instances or create new ones
+      function getOrCreateChart(id, config) {
+        const canvas = document.getElementById(id);
+        if (!canvas) {
+          console.error(`Canvas with id ${id} not found`);
+          return null;
+        }
+        
+        let chart;
+        try {
+          chart = Chart.getChart(canvas);
+          if (chart) {
+            chart.destroy();
+          }
+        } catch (e) {
+          console.log(`No existing chart found for ${id}, creating new one`);
+        }
+        
+        return new Chart(canvas, config);
+      }
+
+      // Round-trip pie chart
+      if (document.getElementById('rtPieChartCategories')) {
+        getOrCreateChart('rtPieChartCategories', {
+          type: 'pie',
+          data: {
+            labels: ['Origin', 'Transport', 'Customs', 'Destination'],
+            datasets: [
+              {
+                label: 'Hours',
+                data: [13.71, 16.52, 78.38, 16.77],
+                backgroundColor: [
+                  CATEGORY_COLORS.Origin,
+                  CATEGORY_COLORS.Transport,
+                  CATEGORY_COLORS.Customs,
+                  CATEGORY_COLORS.Destination
+                ],
+                hoverOffset: 4
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom',
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const value = context.raw;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${value.toFixed(2)} hours (${percentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Round-trip bar chart
+      if (document.getElementById('rtBarChartTouchpoints')) {
+        getOrCreateChart('rtBarChartTouchpoints', {
+          type: 'bar',
+          data: {
+            labels: roundTripTouchpointData.map(item => `TP${item.id}: ${item.name}`),
+            datasets: [
+              {
+                label: 'Average Time (hours)',
+                data: roundTripTouchpointData.map(item => item.avgHours),
+                backgroundColor: roundTripTouchpointData.map(item => CATEGORY_COLORS[item.category]),
+                borderColor: roundTripTouchpointData.map(item => CATEGORY_COLORS[item.category]),
+                borderWidth: 1
+              },
+              {
+                label: 'Optimized Time (hours)',
+                data: roundTripTouchpointData.map(item => {
+                  // Apply custom optimization factors to each touchpoint type
+                  if (item.id === 6) return item.avgHours * 0.36; // Kuwait customs - major optimization
+                  if (item.id === 12) return item.avgHours * 0.47; // SA customs return - significant improvement
+                  if (item.id === 8) return item.avgHours * 0.1;  // Waiting outside - almost eliminated
+                  if (item.category === "Transport") return item.avgHours * 0.85; // Transport - minor improvement
+                  return item.avgHours * 0.9; // All others - slight improvement
+                }),
+                backgroundColor: roundTripTouchpointData.map(() => 'rgba(75, 192, 192, 0.7)'),
+                borderColor: roundTripTouchpointData.map(() => 'rgba(75, 192, 192, 1)'),
+                borderWidth: 1
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top',
+              }
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Hours'
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Round-trip Pareto chart
+      if (document.getElementById('rtParetoChart')) {
+        // Sort touchpoints by time for Pareto analysis
+        const rtSortedTouchpoints = [...roundTripTouchpointData].sort((a, b) => b.avgHours - a.avgHours);
+        
+        // Calculate cumulative percentage
+        let rtCumulative = 0;
+        const rtParetoData = rtSortedTouchpoints.map(point => {
+          rtCumulative += point.percentage;
+          return {
+            ...point,
+            cumulativePercentage: rtCumulative
+          };
+        });
+        
+        getOrCreateChart('rtParetoChart', {
+          type: 'bar',
+          data: {
+            labels: rtParetoData.map(item => `TP${item.id}: ${item.name}`),
+            datasets: [
+              {
+                label: 'Average Time (hours)',
+                data: rtParetoData.map(item => item.avgHours),
+                backgroundColor: rtParetoData.map(item => CATEGORY_COLORS[item.category]),
+                order: 2
+              },
+              {
+                label: 'Cumulative %',
+                data: rtParetoData.map(item => item.cumulativePercentage),
+                backgroundColor: 'rgba(0, 0, 0, 0)',
+                borderColor: '#FF8042',
+                borderWidth: 2,
+                type: 'line',
+                yAxisID: 'y1',
+                order: 1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top',
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: 'Hours'
+                }
+              },
+              y1: {
+                beginAtZero: true,
+                position: 'right',
+                max: 100,
+                title: {
+                  display: true,
+                  text: 'Cumulative %'
+                },
+                grid: {
+                  drawOnChartArea: false
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Journey Distribution Chart
+      if (document.getElementById('rtJourneyDistributionChart')) {
+        getOrCreateChart('rtJourneyDistributionChart', {
+          type: 'doughnut',
+          data: {
+            labels: ['Outbound Journey', 'Return Journey'],
+            datasets: [
+              {
+                label: 'Hours',
+                data: [106.54, 18.84],
+                backgroundColor: [
+                  '#36A2EB',
+                  '#FF6384'
+                ],
+                hoverOffset: 4
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom',
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const value = context.raw;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${value.toFixed(2)} hours (${percentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Round-trip Efficiency Chart
+      if (document.getElementById('rtEfficiencyChart')) {
+        getOrCreateChart('rtEfficiencyChart', {
+          type: 'bar',
+          data: {
+            labels: ['Driving', 'Loading/Unloading', 'Customs Processing', 'Waiting', 'Other'],
+            datasets: [
+              {
+                label: 'Value Adding',
+                data: [16.52, 15.37, 22.75, 0, 0],
+                backgroundColor: '#4CAF50',
+                stack: 'Stack 0',
+              },
+              {
+                label: 'Non-Value Adding',
+                data: [0, 0, 0, 55.43, 15.31],
+                backgroundColor: '#F44336',
+                stack: 'Stack 0',
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top',
+              }
+            },
+            scales: {
+              x: {
+                stacked: true,
+                title: {
+                  display: true,
+                  text: 'Hours'
+                }
+              },
+              y: {
+                stacked: true
+              }
+            }
+          }
+        });
+      }
+
+      // One-way vs. Round-trip Comparison Chart
+      if (document.getElementById('comparisonChart')) {
+        const borderColors = {
+          current: 'rgba(255, 99, 132, 1)',
+          optimized: 'rgba(54, 162, 235, 1)'
+        };
+        
+        const backgroundColors = {
+          current: 'rgba(255, 99, 132, 0.7)',
+          optimized: 'rgba(54, 162, 235, 0.7)'
+        };
+
+        getOrCreateChart('comparisonChart', {
+          type: 'radar',
+          data: {
+            labels: ['Origin', 'Transit Time', 'Customs Processing', 'Destination', 'Return Transit', 'Return Customs'],
+            datasets: [
+              {
+                label: 'Current Journey Time',
+                data: [13.71, 13.42, 62.64, 16.77, 3.10, 15.74],
+                fill: true,
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderColor: borderColors.current,
+                pointBackgroundColor: backgroundColors.current,
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: borderColors.current
+              },
+              {
+                label: 'Optimized Journey Time',
+                data: [12.34, 11.40, 24.5, 9.2, 2.5, 7.1],
+                fill: true,
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: borderColors.optimized,
+                pointBackgroundColor: backgroundColors.optimized,
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: borderColors.optimized
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            elements: {
+              line: {
+                borderWidth: 3
+              }
+            },
+            scales: {
+              r: {
+                angleLines: {
+                  display: true
+                },
+                beginAtZero: true,
+                ticks: {
+                  display: false
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+  </script>
+  
+  // Round-trip tab navigation - Ensuring round-trip tab functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize round-trip tab navigation
+    document.querySelectorAll('#round-trip-content .tab-button').forEach(button => {
+      button.addEventListener('click', function() {
+        // Update active button
+        document.querySelectorAll('#round-trip-content .tab-button').forEach(btn => 
+          btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Show corresponding content
+        const tabId = this.id.replace('rt-tab-', 'rt-content-');
+        document.querySelectorAll('.rt-tab-content').forEach(content => 
+          content.classList.add('hidden'));
+        document.getElementById(tabId)?.classList.remove('hidden');
+      });
+    });
+  });
+
+  // Initialize one-way charts function
+  function initializeOneWayCharts() {
+    console.log('Initializing one-way charts');
+    
+    // Existing chart setup from the main page
+    // No need to recreate these as they're already initialized
+  }
+
+  // On initial page load, make sure the right journey type is shown
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set initial content
+    document.getElementById('one-way-journey').classList.add('active');
+    document.getElementById('round-trip-journey').classList.remove('active');
+    document.getElementById('one-way-content').style.display = 'block';
+    document.getElementById('one-way-content').style.opacity = '1';
+    document.getElementById('round-trip-content').style.display = 'none';
+    document.getElementById('round-trip-content').style.opacity = '0';
+  });
+
+  // Add this function at the end of the script section
+  function checkAllElements() {
+    const criticalElements = [
+      // Round trip chart containers
+      'rtPieChartCategories', 'rtBarChartTouchpoints', 'rtParetoChart', 
+      'rtJourneyDistributionChart', 'rtEfficiencyChart', 'comparisonChart',
+      // Round trip content sections
+      'rt-content-overview', 'rt-content-touchpoints', 'rt-content-bottlenecks',
+      'rt-content-optimizations', 'rt-content-esg',
+      // Tab navigation elements
+      'one-way-journey', 'round-trip-journey', 'one-way-content', 'round-trip-content'
+    ];
+    
+    let allFound = true;
+    criticalElements.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) {
+        console.error(`Critical element not found: ${id}`);
+        allFound = false;
+      }
+    });
+    
+    if (allFound) {
+      console.log('All critical elements found on the page');
+    } else {
+      console.error('Some critical elements are missing - dashboard might not work properly');
+    }
+  }
+  
+  // Run this check after DOM is loaded
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(checkAllElements, 1000);
+  });
+</body>
+</html> 
